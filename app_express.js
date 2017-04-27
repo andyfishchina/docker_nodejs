@@ -6,6 +6,21 @@ var cheerio = require('cheerio');
 var async = require('async');
 //日期
 var moment = require('moment');
+//日志
+var log4js = require("log4js");
+log4js.configure({
+  appenders: [{
+    type: 'console'
+  }, {
+    type: 'dateFile',
+    filename: process.env.LOG_URL+'/docker',
+    pattern: "yyyyMMdd.log",
+    alwaysIncludePattern: true,
+    category: 'log4jslog'
+  }],
+  replaceConsole: true
+});
+var logger = log4js.getLogger('log4jslog');
 
 // 内置
 var url = require('url');
@@ -15,8 +30,12 @@ var cnodeUrl = 'https://cnodejs.org/';
 // 建立 express 实例
 var app = express();
 
+app.use(log4js.connectLogger(logger, {
+  level: 'info'
+}));
+
 app.listen(3000, function(req, res) {
-  console.log('app is running at port 3000');
+  logger.info('app is running at port 3000');
 });
 
 app.get('/', function(req, res, next) {
@@ -37,6 +56,10 @@ app.get('/', function(req, res, next) {
       var items = [];
       var topicUrls = [];
 
+      items.push({
+        title: process.env.LOG_URL,
+        href: process.env.LOG_URL
+      });
       $('#topic_list .topic_title').each(function(idx, element) {
         var $element = $(element);
         items.push({
@@ -51,14 +74,14 @@ app.get('/', function(req, res, next) {
       var concurrencyCount = 0;
       var fetchUrl = function(href, callback) {
         concurrencyCount++;
-        console.log('现在的并发数是', concurrencyCount, '，正在抓取的是', href);
+        logger.info('现在的并发数是', concurrencyCount, '，正在抓取的是', href);
         superagent.get(href)
           .end(function(err, res) {
-            console.log('访问 ' + href + ' successful');
+            logger.info('访问 ' + href + ' successful');
             //console.log(res.text);
             var $ = cheerio.load(res.text);
             // console.log('title', $('.topic_full_title').text().trim(), 'comment1', $('.reply_content').eq(0).text().trim()); 
-            console.log('结果：', {
+            logger.info('结果：', {
               title: $('.topic_full_title').text().trim(),
               href: href,
               comment1: $('.reply_content').eq(0).text().trim(),
@@ -72,8 +95,8 @@ app.get('/', function(req, res, next) {
       async.mapLimit(topicUrls, 5, function(url, callback) {
         fetchUrl(url, callback);
       }, function(err, result) {
-        console.log('final:');
-        console.log(result);
+        logger.info('final:');
+        logger.info(result);
       });
 
       res.send(items);
